@@ -73,3 +73,6 @@ img, .youtube {
     height: 100%;
     width: 100%;
 }
+.hidden {
+  display: none;
+}
