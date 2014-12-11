@@ -1,10 +1,13 @@
-
 (function($) {
 
     function score (nCorrect, nQuestions) {
         var answersWord = nCorrect === 1 ? 'answer' : 'answers';
-        return 'You got <span class="correct-answers">' + nCorrect + '</span> ' +
+        var html = 'You got <span class="correct-answers">' + nCorrect + '</span> ' +
                'correct ' + answersWord + ' out of ' + nQuestions + ' questions';
+		if (self.oneByOne) {
+			html += '<button style="float: right;">Next</button>';
+		}
+		return html;
     }
 
     function scores(nQuestions) {
@@ -21,7 +24,10 @@
         var cover;
         var cheater_answer_tracking = [];
         var answer_tracking = [];
-        var how_you_did_element;
+        var how_you_did_element,
+        	right_answers = 0,
+        	oneByOne = false,
+        	onFinish;
 
         var quiz = {
             defaulting_behavior_on : true,
@@ -216,6 +222,28 @@
                 how_you_did_element = $('<p class="how_you_did"></p>');
                 cover.append(how_you_did_element);
             },
+            
+            setHowYouDidTriggers : function () {
+				$('.how_you_did button').on('click', function () {
+                	$('.question_container:not(.hidden)').addClass('hidden').next().removeClass('hidden');
+                	
+                	// check if has finished the quizz
+                	if ($('.question_container:not(.hidden)').length == 0) {
+						self.onFinish(self.quiz_data.length, self.right_answers);
+					}
+                });
+			},
+			
+			// the only way to prevent Google spreadsheets to overlap is to fill the next cell with at least 1 char
+			// this allows you to have a cleaner spreadsheet without making the quiz explode
+			cleanCells : function (cells) {
+				for (k in cells) {
+					if (cells[k] == " ") {
+						cells[k] = "";
+					}
+				}
+				return cells;
+			},
 
             load_from_google_spreadsheet: function(spreadsheet_id) {
                 Tabletop.init({ 
@@ -326,7 +354,7 @@
                 data = tabletop[sheetName].elements;
 
                 for (i = 0; i < data.length; i++) {
-                    var row = data[i];
+                    var row = row = self.cleanCells(data[i]);
                     var possible_wrong_answers = self.get_possible_answers(row, false);
                     var possible_right_answers = self.get_possible_answers(row, true);
 
@@ -386,8 +414,14 @@
                 return ret;
             },
             append_question : function(question_index) {
-                var question_data = self.quiz_data[question_index];
-                var question_container = $('<li class="question_container row-fluid question_' +
+                var question_data = self.quiz_data[question_index],
+                	hidden = "";
+
+                if (question_index != 0 && self.oneByOne) {
+					hidden = 'hidden';
+				}
+                
+                var question_container = $('<li class="question_container '+ hidden +' row-fluid question_' +
                         question_index +
                         '"></li>'
                 );
@@ -496,7 +530,7 @@
                 container_elem.css('padding', '0px');
             },
             update_how_you_did_element: function() {
-                var right_answers = 0;
+                self.right_answers = 0;
                 var user_answers = self.cheating ? cheater_answer_tracking : answer_tracking;
                 var unfinished = false;
                 for (var i = 0; i < self.quiz_data.length; i++) {
@@ -504,16 +538,20 @@
                         unfinished = true;
                     }
                     if (user_answers[i]) {
-                        right_answers++;
+                        self.right_answers++;
                     }
                 }
                 var html;
                 if (unfinished && typeof(this.not_finished_html) !== 'undefined') {
                     html = this.not_finished_html;
                 } else {
-                    html = this.results_data[right_answers];
+                    html = this.results_data[self.right_answers];
                 }
                 how_you_did_element.html(html);
+                
+                if (self.oneByOne) {
+					self.setHowYouDidTriggers();
+				}
             }
         };
         return quiz.init(quiz_data, results_data, options);
